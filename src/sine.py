@@ -189,11 +189,7 @@ if __name__ == "__main__":
 
         except Exception as e:
             print("Exception: ", e)
-            stream.stop_stream()
-            stream.close()
-            p.terminate()        
-            plt.close()
-            exit(0)
+            break
 
     # Kill the stream
     stream.stop_stream()
