@@ -28,6 +28,7 @@ import sys
 import time
 
 from matplotlib import pyplot as plt    # -> pip install matplotlib
+from scipy.fftpack import fft
 import numpy as np                      # -> pip install numpy
 import pyaudio                          # -> pip install pyaudio
 import struct
@@ -248,18 +249,19 @@ if __name__ == '__main__':
         fig, axs = plt.subplots(nrows=2, ncols=1, figsize=(20,10))
         # Signal Plot
         axs[0].axis([0, CHIRP_NUM_SAMPLES, -1., 1.])
-        axs[0].set_title("Signal")
+        axs[0].set_title("Time Domain")
         axs[0].set_xlabel("Samples")
         axs[0].set_ylabel("Amplitude")
         axs[0].plot(np.arange(CHIRP_NUM_SAMPLES), signal)
         
-        axs[1].axis([0, CHIRP_NUM_SAMPLES, CHIRP_F0, CHIRP_F1])
-        axs[1].set_title("Minimal Spectrogram")
-        axs[1].set_xlabel("Samples")
-        axs[1].set_ylabel("Frequency")
-        axs[1].plot(np.arange(CHIRP_NUM_SAMPLES), FREQ_TABLE)
+        axs[1].set_title("Frequency Spectrum")
+        axs[1].set_xlabel("Frequency (Hz)")
+        axs[1].set_ylabel("Magnitude")
+        yf = fft(signal)
+        norm = 2.0 / CHIRP_NUM_SAMPLES * np.abs(yf[:CHIRP_NUM_SAMPLES / 2]) 
+        axs[1].axis([CHIRP_F0, CHIRP_F1, 0, np.amax(norm)])
+        axs[1].plot(np.linspace(CHIRP_F0, CHIRP_F1, CHIRP_NUM_SAMPLES / 2.), norm)
 
-        fig.tight_layout()
         plt.show()
 
         print("Close GUI to exit program!")
