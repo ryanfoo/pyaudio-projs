@@ -17,6 +17,7 @@ import time
 from matplotlib import pyplot as plt    # -> pip install matplotlib
 import numpy as np                      # -> pip install numpy
 import pyaudio                          # -> pip install pyaudio
+from scipy.fftpack import fft
 
 # Menu Commands
 menu_commands = {
@@ -37,17 +38,22 @@ FREQ = 440.                         # default 440 hz
 AMPLITUDE = 0.5                     # default amplitude 0.5
 TWO_PI = 2 * np.pi                  # Full cycle
 
+# Calculate phase: 2 * PI * frequency / sample rate
+OMEGA = TWO_PI * FREQ / SAMPLE_RATE
+# Declare frame offset variable
+FRAME_OFFSET = 0
+
 AUDIO_STREAM_ENABLED = False        # Audio Enabled Flag
-PROGRAM_IS_ACTIVE = True            # Non-thread safe active flag
 OSCILLOSCOPE_ENABLED = False        # Oscilloscope Flag
+PROGRAM_IS_ACTIVE = True            
 
 # Oscilloscope Plot
-PLOT_TIME   = np.zeros(FRAMES_PER_BUFFER)
-PLOT_SIGNAL = np.zeros(FRAMES_PER_BUFFER)
+TIME_DOMAIN_XS   = np.zeros(FRAMES_PER_BUFFER)
+TIME_DOMAIN_YS = np.zeros(FRAMES_PER_BUFFER)
 
 # Callback function pyaudio object will use to stream audio
 def callback(in_data, frame_count, time_info, status):
-    global FRAME_OFFSET, PLOT_SIGNAL, PLOT_TIME
+    global FRAME_OFFSET, TIME_DOMAIN_YS, TIME_DOMAIN_XS
     # Used to increment phase per frame
     xs = np.arange(FRAME_OFFSET, FRAME_OFFSET + frame_count)
     # Create table of computed phases according to current frame. numpy's sin function wraps the phase properly.
@@ -64,10 +70,10 @@ def callback(in_data, frame_count, time_info, status):
     #TODO: Remove, this is for audio input
     # Convert input data
     #in_data = np.fromstring(in_data, dtype=np.float32)
-    #PLOT_SIGNAL = in_data
+    #TIME_DOMAIN_YS = in_data
     # Set plot data
-    PLOT_TIME = xs
-    PLOT_SIGNAL = data
+    TIME_DOMAIN_XS = xs
+    TIME_DOMAIN_YS = data
     # Write to buffer; output buffer expects array of length FRAMES_PER_BUFFER * NUM_CHANNELS * BYTES_PER_CHANNEL
     return (out.astype(np.float32), pyaudio.paContinue)
 
@@ -139,10 +145,6 @@ def handle_kb_input(s, audio_stream):
         print_menu()
 
 if __name__ == "__main__":
-    # Calculate phase: 2 * PI * frequency / sample rate
-    OMEGA = TWO_PI * FREQ / SAMPLE_RATE
-    # Declare frame offset variable
-    FRAME_OFFSET = 0
     # Create PortAudio interface
     p = pyaudio.PyAudio()
 
@@ -161,18 +163,26 @@ if __name__ == "__main__":
     print_menu()
 
     # Start scope
-    fig, ax = plt.subplots()
-    plt.xlabel('Time (s)')
-    plt.ylabel('Amplitude')
-    ax.set_xlim(0, FRAMES_PER_BUFFER)
-    ax.set_ylim(-1, 1)
-    ax.plot(PLOT_TIME, PLOT_SIGNAL) 
-    
+    fig, (ax_timeDomain, ax_freqDomain) = plt.subplots(2)
+    fig.suptitle("Oscilloscope", fontsize=16)
+    ax_timeDomain.set_xlim(0, float(FRAMES_PER_BUFFER) / float(SAMPLE_RATE))
+    ax_timeDomain.set_ylim(-1, 1)
+    ax_timeDomain.set_xlabel("Time (s)")
+    ax_timeDomain.set_ylabel("Amplitude")
+    ax_timeDomain.set_title("Time Domain")
+    ax_timeDomain.plot(TIME_DOMAIN_XS, TIME_DOMAIN_YS) 
+    ax_freqDomain.set_xlim(0, 20000)
+    ax_freqDomain.set_ylim(0, 1)
+    ax_freqDomain.set_xlabel("Frequency (Hz)")
+    ax_freqDomain.set_ylabel("Magnitude")
+    ax_freqDomain.set_title("Frequency Spectrum")
+    # Frequency Spectrum range is between 0 and nyquist frequency. 3rd argument determines interval of spaced samples
+    FREQ_DOMAIN_XS = np.linspace(0, SAMPLE_RATE / 2., FRAMES_PER_BUFFER / 2)
+
     # Main while loop
     while PROGRAM_IS_ACTIVE:
         try:
             # Handle keyboard input, timeout 500ms
-            #TODO: don't leave as magic number
             rlist, _, _ = select([sys.stdin], [], [], 0.5)
             if rlist:
                 s = sys.stdin.readline()
@@ -180,11 +190,19 @@ if __name__ == "__main__":
 
             # Plot / update figure canvas
             if OSCILLOSCOPE_ENABLED:
-                ax.set_xlim(PLOT_TIME[0] / float(SAMPLE_RATE), PLOT_TIME[FRAMES_PER_BUFFER-1] / float(SAMPLE_RATE))
-                ax.plot(PLOT_TIME / float(SAMPLE_RATE), PLOT_SIGNAL, c='black')
+                ## Plot Time Domain Signal
+                # Increment time domain
+                ax_timeDomain.set_xlim(TIME_DOMAIN_XS[0] / float(SAMPLE_RATE), TIME_DOMAIN_XS[FRAMES_PER_BUFFER-1] / float(SAMPLE_RATE))
+                ax_timeDomain.plot(TIME_DOMAIN_XS / float(SAMPLE_RATE), TIME_DOMAIN_YS, c='blue')
+                ## Plot Frequency Spectrum
+                # Compute FFT (magnitude + phase)
+                FREQ_DOMAIN_YS = fft(TIME_DOMAIN_YS)
+                # Clear plot and redraw frequency spectrum
+                ax_freqDomain.cla()
+                # Get magnitude of each frequency; 2/length of sequence for normalization
+                ax_freqDomain.plot(FREQ_DOMAIN_XS, 2.0 / FRAMES_PER_BUFFER * np.abs(FREQ_DOMAIN_YS[:FRAMES_PER_BUFFER / 2]), c='orange')
                 fig.canvas.draw()
                 # Pause for 1ms to let it redraw
-                #TODO: don't leave as magic number
                 plt.pause(0.001)
 
         except Exception as e:
