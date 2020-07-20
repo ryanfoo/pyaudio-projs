@@ -26,6 +26,8 @@ import sys
 from matplotlib import pyplot as plt    # -> pip install matplotlib
 import numpy as np                      # -> pip install numpy
 
+from oscillator import *
+
 # Enum for formats
 class Format(enum.Enum):
     SIGNED_8_BIT = 0,
@@ -95,8 +97,16 @@ if __name__ == '__main__':
 
     #TODO: Change format conversion given the command line argument
     # Generate Signal
-    xs = np.arange(TABLE_SIZE)
-    lookup_table = (AMPLITUDE * np.sin(TWO_PI * xs / TABLE_SIZE)) * 32767
+    wave = Sine(TABLE_SIZE)
+    #TODO: Implement different waveforms to make wavetables
+    #wave = Triangle(TABLE_SIZE)
+    #wave = Saw(TABLE_SIZE)
+    #wave = Pulse(TABLE_SIZE)
+    wave.set_frequency(1.)
+    lookup_table = wave.process(TABLE_SIZE) * 32767    
+    ## Old algorithm
+    #xs = np.arange(TABLE_SIZE)
+    #lookup_table = (AMPLITUDE * np.sin(TWO_PI * xs / TABLE_SIZE)) * 32767
 
     # Create directory
     path = os.getcwd() + "/lookup_tables"
@@ -119,15 +129,15 @@ if __name__ == '__main__':
     # Plot
     if DRAW_ENABLED == True:
         print("Plotting...")
-        fig, axs = plt.subplots(nrows=1, ncols=1, figsize=(20,10))
+        fig, wave_plot = plt.subplots(nrows=1, ncols=1, figsize=(20,10))
         # Signal Plot
-        axs[0].axis([0, TABLE_SIZE, -32767, 32767])
-        axs[0].set_title("Lookup Table")
-        axs[0].set_xlabel("Samples")
-        axs[0].set_ylabel("Amplitude")
-        axs[0].plot(np.arange(TABLE_SIZE), signal)
+        wave_plot.axis([0, TABLE_SIZE, -32767, 32767])
+        wave_plot.set_title("Lookup Table")
+        wave_plot.set_xlabel("Samples")
+        wave_plot.set_ylabel("Amplitude")
+        wave_plot.plot(np.arange(TABLE_SIZE), lookup_table)
         
-        fig.tight_layout()
+        #fig.tight_layout()
         plt.show()
 
         print("Close GUI to exit program!")
