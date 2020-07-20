@@ -27,6 +27,8 @@ from oscillator import *
 
 NUM_FRAMES = 1024
 SAMPLE_RATE = 44100
+##TODO: Implement variable control here
+FREQ = 220.
 # ms linear spacing
 TIME_DOMAIN_XS = np.linspace(0, int(NUM_FRAMES / SAMPLE_RATE * 1000), NUM_FRAMES)
 FREQ_DOMAIN_XS = np.linspace(0, int(SAMPLE_RATE / 2), int(NUM_FRAMES / 2))
@@ -36,14 +38,14 @@ fig.suptitle("Naive Waveforms")
 
 # Test Sine wave
 sine = Sine(SAMPLE_RATE)
-sine.set_frequency(440.)
+sine.set_frequency(FREQ)
 samples = sine.process(NUM_FRAMES)
 waves[0][0].plot(TIME_DOMAIN_XS, samples)
 waves[0][1].plot(FREQ_DOMAIN_XS, 2.0 / NUM_FRAMES * np.abs(fft(samples)[:int(NUM_FRAMES / 2)]))
 
 # Test Pulse wave 50%
 sqr = Pulse(SAMPLE_RATE)
-sqr.set_frequency(440.)
+sqr.set_frequency(FREQ)
 samples = sqr.process(NUM_FRAMES)
 waves[1][0].plot(TIME_DOMAIN_XS, samples)
 waves[1][1].plot(FREQ_DOMAIN_XS, 2. / NUM_FRAMES * np.abs(fft(samples)[:int(NUM_FRAMES / 2)]))
@@ -64,14 +66,14 @@ waves[3][1].plot(FREQ_DOMAIN_XS, 2. / NUM_FRAMES * np.abs(fft(samples)[:int(NUM_
 
 # Test Triangle wave
 tri = Triangle(SAMPLE_RATE)
-tri.set_frequency(440.)
+tri.set_frequency(FREQ)
 samples = tri.process(NUM_FRAMES)
 waves[4][0].plot(TIME_DOMAIN_XS, samples)
 waves[4][1].plot(FREQ_DOMAIN_XS, 2. / NUM_FRAMES * np.abs(fft(samples)[:int(NUM_FRAMES / 2)]))
 
 # Test ramp up wave
 saw = Saw(SAMPLE_RATE)
-saw.set_frequency(440.)
+saw.set_frequency(FREQ)
 samples = saw.process(NUM_FRAMES)
 waves[5][0].plot(TIME_DOMAIN_XS, samples)
 waves[5][1].plot(FREQ_DOMAIN_XS, 2. / NUM_FRAMES * np.abs(fft(samples)[:int(NUM_FRAMES / 2)]))

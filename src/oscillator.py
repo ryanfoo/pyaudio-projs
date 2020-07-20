@@ -160,13 +160,13 @@ class Pulse(Oscillator):
 
     def set_duty_cycle(self, dc):
         self.__duty_cycle = dc
-        self.__dc_constant = (2 * self.__duty_cycle) - 1
+        self.__dc_constant = -(2 * self.__duty_cycle) + 1
 
     def process(self, frames):
         samples = np.sin(np.arange(self.frame_offset, self.frame_offset + frames) * self.__omega)
         self.frame_offset += frames
         #TODO: Should probably calculate the duty cycle in time domain, not in this piecewise function
-        return self.amplitude * np.piecewise(samples, [samples >= self.__dc_constant, samples < self.__dc_constant], [-1, 1])
+        return self.amplitude * np.piecewise(samples, [samples >= self.__dc_constant, samples < self.__dc_constant], [1, -1])
 
 '''
 Naive Realtime White Noise generation subclass
