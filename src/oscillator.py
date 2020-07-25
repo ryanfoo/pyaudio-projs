@@ -21,10 +21,10 @@ Abstract class for tone generation classes
 '''
 class Oscillator(ABC):
     # Constructor
-    def __init__(self, srate = 44100):
+    def __init__(self, srate = 44100, f = 1., a = 1.):
         self.sample_rate    = srate
-        self.amplitude      = 1.
-        self.frequency      = 440.
+        self.amplitude      = a
+        self.frequency      = f
         # Start frame offset at 1; don't calculate at frame 0 due to zero division
         self.frame_offset   = 1
 
@@ -62,9 +62,9 @@ class Sine(Oscillator):
     ''' Private Variables '''
     __omega = 0
 
-    def __init__(self, srate = 44100):
-        super(Sine, self).__init__(srate)
-        self.__omega = 2. * np.pi * self.frequency / self.sample_rate
+    def __init__(self, srate = 44100, f = 1., a = 1.):
+        super(Sine, self).__init__(srate, f, a)
+        self.set_frequency(f)
  
     def set_frequency(self, f):
         super(Sine, self).set_frequency(f)
@@ -86,9 +86,9 @@ class Triangle(Oscillator):
     ''' Private Variables '''
     __omega = 0
 
-    def __init__(self, srate = 44100):
-        super(Triangle, self).__init__(srate)
-        self.__omega = 2. * np.pi * self.frequency / self.sample_rate
+    def __init__(self, srate = 44100, f = 1., a = 1.):
+        super(Triangle, self).__init__(srate, f, a)
+        self.set_frequency(f)
 
     def set_frequency(self, f):
         super(Triangle, self).set_frequency(f)
@@ -117,9 +117,9 @@ class Saw(Oscillator):
 
     __ramp = Ramp.UP
 
-    def __init__(self, srate = 44100):
+    def __init__(self, srate = 44100, f = 1., a = 1.):
         super(Saw, self).__init__(srate)
-        self.__omega = np.pi * self.frequency / self.sample_rate
+        self.set_frequency(f)
 
     def set_frequency(self, f):
         super(Saw, self).set_frequency(f)
@@ -149,10 +149,10 @@ class Pulse(Oscillator):
     __dc_constant = 0
     __omega = 0
 
-    def __init__(self, srate = 44100, dc = 0.5):
+    def __init__(self, srate = 44100, f = 1., a = 1., dc = 0.5):
         super(Pulse, self).__init__(srate)
         self.__duty_cycle = dc
-        self.__omega = 2. * np.pi * self.frequency / self.sample_rate
+        self.set_frequency(f)
 
     def set_frequency(self, f):
         super(Pulse, self).set_frequency(f)

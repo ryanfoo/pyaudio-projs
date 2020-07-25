@@ -2,23 +2,25 @@
     File Name: gen_lookup_table.py
     Author: Ryan Foo
     Date created: 06/28/2020
-    Python Version: 2.7
+    Python Version: 3.7
 
     This generates a sine lookup table over a time period.
 
     To execute, enter:
         python gen_lookup_table.py
     Optional Flags:
+        -w <waveform>   : Set waveform 
         -n <table_size> : Set table size (integer)
         -v <amplitude>  : Set volume/amplitude (float)
-        -f <format>     : Set format (8, 16, 24, 32, 32f, 64f)
-        -w <file>       : Write c file
+        -t <format>     : Set format (8, 16, 24, 32, 32f, 64f)
+        -w <file>       : Filename
         -d              : Draw signal + frequency plot 
 '''
 
 #!/usr/bin/python
 
 import enum
+import getopt
 import math
 import os
 import sys
@@ -37,92 +39,154 @@ class Format(enum.Enum):
     FLOAT_32_BIT = 4,
     FLOAT_64_BIT = 5
 
-AMPLITUDE = 0.5                         # Amplitude
-NUM_CHANNELS = 2                        # Stereo
-TWO_PI = 2 * np.pi                      # Full cycle
+# Enum for WAVE_TYPEs
+class Waveform(enum.Enum):
+    SINE = 0,
+    TRI = 1,
+    RAMP = 2,
+    SAW = 3,
+    SQR = 4,
+    WHITE = 5
+
+ALIAS_SINE  = {"sine", "sin"}
+ALIAS_TRI   = {"triangle", "tri"}
+ALIAS_RAMP  = {"ramp up", "ramp"}
+ALIAS_SAW   = {"ramp down", "sawtooth", "saw"}
+ALIAS_SQR   = {"square", "sqr", "pulse"}
+ALIAS_WHITE = {"white noise", "white"}
+
+AMPLITUDE = 1.0                         # Amplitude
 TABLE_SIZE = 1024                       # Number of samples to generate
 LOOKUP_TABLE_FILENAME = "lookup.h"      # Lookup table filename
 DRAW_ENABLED = False                    # Draw plot flag
 FORMAT = Format.SIGNED_16_BIT           # Bit Format
+FORMAT_C_STRING = "int16_t"             # Format type for C
+NP_FORMAT = '\t%d,'                     # Format for np write file
+WAVE_TYPE = Waveform.SINE               # Sine Wave
 
 if __name__ == '__main__':
-    # Process Command Line Arguments
-    if len(sys.argv) >= 2:
-        argc = 1
-        while argc < len(sys.argv):
-            flag = sys.argv[argc]
-            # DEBUG
-            #print("Echo command: %s" % (flag))
-            if flag == "-n":
-                try:
-                    val = int(sys.argv[argc+1])
-                    if val < 0:
-                        print("Expecting tablesize of over 2. Defaulting to 1024")
-                    else:
-                        TABLE_SIZE = val
-                except:
-                    print("Expecting integer for tablesize. Defaulting to 1024")
-                print("Tablesize = %f" % (TABLE_SIZE))
-                argc += 2
-            elif flag == "-v":
-                try:
-                    val = float(sys.argv[argc+1])
-                    if val > 1.0 or val < -1.0:
-                        print("Expecting volume between -1.0 to 1.0. Defaulting to 0.5")
-                    else:
-                        AMPLITUDE = val
-                except:
-                    print("Expecting float for volume. Defaulting to 0.5")
-                print("Volume = %f" % (AMPLITUDE))
-                argc += 2
-            elif flag == "-f":
-                try:
-                    val = sys.argv[argc+1]
-                except:
-                    print("Default 16bit format")
-                argc += 2
-            elif flag == "-w":
-                try:
-                    val = sys.argv[argc+1]
-                    LOOKUP_TABLE_FILENAME = val
-                except:
-                    print("Defaulting lookup.txt write")
-                    LOOKUP_TABLE_FILENAME = "sine_{0}.h".format(TABLE_SIZE)
-                argc += 2
-            elif flag == "-d":
-                DRAW_ENABLED = True
-                argc += 1
+    # Get command line args
+    try:
+        opts, args = getopt.getopt(sys.argv[1:], "hdn:w:t:a:f:")
+    except:
+        print("gen_lookup_table.py -n <table_size> -w <WAVE_TYPE> -t <format> -a <amplitude> -f <file_name> -d")
+        sys.exit(2)
+    
+    # Process arguments
+    for opt, arg in opts:
+        if opt == '-h':
+            print("gen_lookup_table.py -n <table_size> -w <WAVE_TYPE> -t <format> -a <amplitude> -f <file_name> -d")
+            sys.exit()
+        elif opt == '-n':
+            TABLE_SIZE = int(arg)
+            if TABLE_SIZE < 0:
+                print("Table Size must be greater than 0")
+                sys.exit()
+        elif opt == '-w':
+            print(arg.lower())
+            if arg.lower() in ALIAS_SINE:
+                WAVE_TYPE = Waveform.SINE
+            elif arg.lower() in ALIAS_TRI:
+                WAVE_TYPE = Waveform.TRI
+            elif arg.lower() in ALIAS_RAMP:
+                WAVE_TYPE = Waveform.RAMP
+            elif arg.lower() in ALIAS_SAW:
+                WAVE_TYPE = Waveform.SAW
+            elif arg.lower() in ALIAS_SQR:
+                WAVE_TYPE = Waveform.SQR
+            elif arg.lower() in ALIAS_WHITE:
+                WAVE_TYPE = Waveform.WHITE
             else:
-                argc += 1
+                print("Waveform input is invalid, try sine, tri, ramp, saw, sqr, or white noise")
+                sys.exit()
+        elif opt == '-t':
+            if arg == "8":
+                FORMAT = Format.SIGNED_8_BIT
+                FORMAT_C_STRING = "int8_t"
+            elif arg == "16":
+                FORMAT = Format.SIGNED_16_BIT
+                FORMAT_C_STRING = "int16_t"
+            elif arg == "24":
+                FORMAT = Format.SIGNED_24_BIT
+                FORMAT_C_STRING = "int32_t"
+            elif arg == "32":
+                FORMAT = Format.SIGNED_32_BIT
+                FORMAT_C_STRING = "int32_t"
+            elif arg == "32f":
+                FORMAT = Format.FLOAT_32_BIT
+                FORMAT_C_STRING = "float"
+                NP_FORMAT = '\t%f,'
+            elif arg == "64f":
+                FORMAT = Format.FLOAT_64_BIT
+                FORMAT_C_STRING = "float"
+                NP_FORMAT = '\t%f,'
+            else:
+                print("Format input is invalid, try 8, 16, 24, 32, 32f, 64f")
+                sys.exit()
+        elif opt == '-a':
+            try:
+                AMPLITUDE = float(arg)
+            except:
+                print("Invalid amplitude argument, try a float number between -1.0 to 1.0")
+                sys.exit()
+        elif opt == '-f':
+            if arg[-2:] != ".h":
+                LOOKUP_TABLE_FILENAME = arg + ".h"
+            else:
+                LOOKUP_TABLE_FILENAME = arg
+        elif opt == '-d':
+            DRAW_ENABLED = True
 
-    #TODO: Change format conversion given the command line argument
     # Generate Signal
-    wave = Sine(TABLE_SIZE)
-    #TODO: Implement different waveforms to make wavetables
-    #wave = Triangle(TABLE_SIZE)
-    #wave = Saw(TABLE_SIZE)
-    #wave = Pulse(TABLE_SIZE)
-    wave.set_frequency(1.)
-    lookup_table = wave.process(TABLE_SIZE) * 32767    
-    ## Old algorithm
-    #xs = np.arange(TABLE_SIZE)
-    #lookup_table = (AMPLITUDE * np.sin(TWO_PI * xs / TABLE_SIZE)) * 32767
+    if WAVE_TYPE == Waveform.SINE:
+        wave = Sine(TABLE_SIZE)
+    elif WAVE_TYPE == Waveform.TRI:
+        wave = Triangle(TABLE_SIZE)
+    elif WAVE_TYPE == Waveform.RAMP:
+        wave = Saw(TABLE_SIZE)
+        wave.set_ramp(True)
+    elif WAVE_TYPE == Waveform.SAW:
+        wave = Saw(TABLE_SIZE)
+        wave.set_ramp(False)
+    elif WAVE_TYPE == Waveform.SQR:
+        wave = Pulse(TABLE_SIZE)
+    elif WAVE_TYPE == Waveform.WHITE:
+        wave = WhiteNoise(TABLE_SIZE)
+    
+    # Write to lookup table with proper format
+    if FORMAT == Format.SIGNED_8_BIT:
+        lookup_table = wave.process(TABLE_SIZE) * (pow(2, 7) - 1)
+    elif FORMAT == Format.SIGNED_16_BIT:
+        lookup_table = wave.process(TABLE_SIZE) * (pow(2, 15) - 1)
+    elif FORMAT == Format.SIGNED_24_BIT:
+        lookup_table = wave.process(TABLE_SIZE) * (pow(2, 23) - 1)
+    elif FORMAT == Format.SIGNED_32_BIT:
+        lookup_table = wave.process(TABLE_SIZE) * (pow(2, 31) - 1)
+    elif FORMAT == Format.FLOAT_32_BIT:
+        lookup_table = wave.process(TABLE_SIZE).astype(np.float32)
+    elif FORMAT == Format.FLOAT_64_BIT:
+        lookup_table = wave.process(TABLE_SIZE).astype(np.float64)
+    else:
+        print("Something went wrong, exiting")
+        sys.exit()
 
     # Create directory
     path = os.getcwd() + "/lookup_tables"
-    try:
-        os.mkdir(path)
-        print("Making directory " + path)
-    except:
-        print("Error occurred while making directory")
+    if os.path.exists(path) == False:
+        try:
+            os.mkdir(path)
+            print("Making directory " + path)
+        except:
+            e = sys.exc_info()[0]
+            print("Error: %s" % e)
 
-    #TODO: Change fmt specifier given the command line argument
     # Write to file
+    print("Writing to %s" % (path + "/" + LOOKUP_TABLE_FILENAME)) 
     np.savetxt(path + "/" + LOOKUP_TABLE_FILENAME, 
             lookup_table, 
-            fmt='\t%d,',
+            fmt=NP_FORMAT,
             newline='\n', 
-            header='#ifndef LOOKUP_H\n#define LOOKUP_H\n\nint16_t sine[%d] = {' % TABLE_SIZE, 
+            header='#ifndef LOOKUP_H\n#define LOOKUP_H\n\n%s lookup[%d] = {' % (FORMAT_C_STRING, TABLE_SIZE), 
             footer='};\n\n#endif', 
             comments='')
 
@@ -131,7 +195,6 @@ if __name__ == '__main__':
         print("Plotting...")
         fig, wave_plot = plt.subplots(nrows=1, ncols=1, figsize=(20,10))
         # Signal Plot
-        wave_plot.axis([0, TABLE_SIZE, -32767, 32767])
         wave_plot.set_title("Lookup Table")
         wave_plot.set_xlabel("Samples")
         wave_plot.set_ylabel("Amplitude")

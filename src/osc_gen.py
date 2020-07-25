@@ -1,16 +1,17 @@
 '''
-    File Name: sine.py
+    File Name: osc_gen.py
     Author: Ryan Foo
     Date created: 06/27/2020
-    Python Version: 2.7
+    Python Version: 3.7
 
     To execute, enter:
-        python sine.py 
+        python osc_gen.py 
 '''
 
 #!/usr/bin/python
 
 from select import select
+import getopt
 import sys
 import time
 
@@ -19,12 +20,22 @@ import numpy as np                      # -> pip install numpy
 import pyaudio                          # -> pip install pyaudio
 from scipy.fftpack import fft
 
+from oscillator import *
+
+ALIAS_SINE  = {"sine", "sin"}
+ALIAS_TRI   = {"triangle", "tri"}
+ALIAS_RAMP  = {"ramp up", "ramp"}
+ALIAS_SAW   = {"ramp down", "sawtooth", "saw"}
+ALIAS_SQR   = {"square", "sqr", "pulse"}
+ALIAS_WHITE = {"white noise", "white"}
+
 # Menu Commands
 menu_commands = {
     "q"                     : "Quit Program",
     "s"                     : "Play / Stop Sound",
     "f <frequency>"         : "Change Frequency",
-    "a <amplitude"          : "Change Amplitude",
+    "a <amplitude>"         : "Change Amplitude",
+    "w <wave_type>"         : "Change waveform",
     "+ <optional frequency>": "Increment by optional frequency",
     "- <optional frequency>": "Decrement by optional frequency",
     "o"                     : "Open/close oscilloscope",
@@ -51,15 +62,23 @@ PROGRAM_IS_ACTIVE = True
 TIME_DOMAIN_XS   = np.zeros(FRAMES_PER_BUFFER)
 TIME_DOMAIN_YS = np.zeros(FRAMES_PER_BUFFER)
 
+# Test Sine
+wave = Sine(SAMPLE_RATE)
+wave.set_frequency(FREQ)
+wave.set_amplitude(AMPLITUDE)
+
 # Callback function pyaudio object will use to stream audio
 def callback(in_data, frame_count, time_info, status):
     global FRAME_OFFSET, TIME_DOMAIN_YS, TIME_DOMAIN_XS
     # Used to increment phase per frame
     xs = np.arange(FRAME_OFFSET, FRAME_OFFSET + frame_count)
+    '''
     # Create table of computed phases according to current frame. numpy's sin function wraps the phase properly.
     gen = AMPLITUDE * np.sin(xs * OMEGA)
     # Increment frame offset 
     FRAME_OFFSET += frame_count
+    '''
+    gen = wave.process(frame_count)
     # Cast array as 32-bit float
     data = gen.astype(np.float32)
     # interleave data 
@@ -85,7 +104,7 @@ def print_menu():
 
 # Handle Keyboard I/O
 def handle_kb_input(s, audio_stream):
-    global PROGRAM_IS_ACTIVE, AUDIO_STREAM_ENABLED, FREQ, OMEGA, AMPLITUDE, OSCILLOSCOPE_ENABLED
+    global PROGRAM_IS_ACTIVE, AUDIO_STREAM_ENABLED, FREQ, OMEGA, AMPLITUDE, OSCILLOSCOPE_ENABLED, wave
     if s[0] == 'q':
         print("Quitting...")
         PROGRAM_IS_ACTIVE = False
@@ -105,6 +124,7 @@ def handle_kb_input(s, audio_stream):
             print("Not changing frequency")
         print("Frequency=%f Hz" % (FREQ))
         OMEGA = TWO_PI * FREQ / SAMPLE_RATE
+        wave.set_frequency(FREQ)
     elif s[0] == 'a':
         try:
             v = float(s[2:])
@@ -112,6 +132,7 @@ def handle_kb_input(s, audio_stream):
         except:
             print("Not changing amplitude")
         print("Amplitude=%f" % (AMPLITUDE))
+        wave.set_amplitude(AMPLITUDE)
     elif s[0] == '+' or s[0] == '=':
         val = 1.
         try:
@@ -122,6 +143,7 @@ def handle_kb_input(s, audio_stream):
         FREQ += val
         print("Frequency=%f Hz" % (FREQ))
         OMEGA = TWO_PI * FREQ / SAMPLE_RATE
+        wave.set_frequency(FREQ)
     elif s[0] == '_' or s[0] == '-':
         val = 1.
         try:
@@ -132,6 +154,23 @@ def handle_kb_input(s, audio_stream):
         FREQ -= val
         print("Frequency=%f Hz" % (FREQ))
         OMEGA = TWO_PI * FREQ / SAMPLE_RATE
+        wave.set_frequency(FREQ)
+    elif s[0] == 'w':
+        wave_input = (s[2:-1]).lower()
+        if wave_input in ALIAS_SINE:
+            wave = Sine(SAMPLE_RATE)
+        elif wave_input in ALIAS_TRI:
+            wave = Triangle(SAMPLE_RATE)
+        elif wave_input in ALIAS_RAMP:
+            wave = Saw(SAMPLE_RATE)
+            wave.set_ramp(True)
+        elif wave_input in ALIAS_SAW:
+            wave = Saw(SAMPLE_RATE)
+            wave.set_ramp(False)
+        elif wave_input in ALIAS_SQR:
+            wave = Pulse(SAMPLE_RATE)
+        wave.set_frequency(FREQ)
+        wave.set_amplitude(AMPLITUDE)
     elif s[0] == 'o':
         OSCILLOSCOPE_ENABLED = not OSCILLOSCOPE_ENABLED
         if OSCILLOSCOPE_ENABLED:
@@ -165,7 +204,7 @@ if __name__ == "__main__":
     # Start scope
     fig, (ax_timeDomain, ax_freqDomain) = plt.subplots(2)
     fig.suptitle("Oscilloscope", fontsize=16)
-    ax_timeDomain.set_xlim(0, float(FRAMES_PER_BUFFER) / float(SAMPLE_RATE))
+    #ax_timeDomain.set_xlim(0, int(FRAMES_PER_BUFFER / SAMPLE_RATE))
     ax_timeDomain.set_ylim(-1, 1)
     ax_timeDomain.set_xlabel("Time (s)")
     ax_timeDomain.set_ylabel("Amplitude")
@@ -177,7 +216,7 @@ if __name__ == "__main__":
     ax_freqDomain.set_ylabel("Magnitude")
     ax_freqDomain.set_title("Frequency Spectrum")
     # Frequency Spectrum range is between 0 and nyquist frequency. 3rd argument determines interval of spaced samples
-    FREQ_DOMAIN_XS = np.linspace(0, SAMPLE_RATE / 2., FRAMES_PER_BUFFER / 2)
+    FREQ_DOMAIN_XS = np.linspace(0, int(SAMPLE_RATE / 2), int(FRAMES_PER_BUFFER / 2))
 
     # Main while loop
     while PROGRAM_IS_ACTIVE:
@@ -192,8 +231,8 @@ if __name__ == "__main__":
             if OSCILLOSCOPE_ENABLED:
                 ## Plot Time Domain Signal
                 # Increment time domain
-                ax_timeDomain.set_xlim(TIME_DOMAIN_XS[0] / float(SAMPLE_RATE), TIME_DOMAIN_XS[FRAMES_PER_BUFFER-1] / float(SAMPLE_RATE))
-                ax_timeDomain.plot(TIME_DOMAIN_XS / float(SAMPLE_RATE), TIME_DOMAIN_YS, c='blue')
+                #ax_timeDomain.set_xlim(int(TIME_DOMAIN_XS[0] / float(SAMPLE_RATE)), int(TIME_DOMAIN_XS[FRAMES_PER_BUFFER-1] / float(SAMPLE_RATE)))
+                ax_timeDomain.plot(np.linspace(0, int(FRAMES_PER_BUFFER / SAMPLE_RATE * 1000), FRAMES_PER_BUFFER), TIME_DOMAIN_YS, c='blue')
                 ## Plot Frequency Spectrum
                 # Compute FFT (magnitude + phase)
                 FREQ_DOMAIN_YS = fft(TIME_DOMAIN_YS)
