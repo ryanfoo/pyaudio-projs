@@ -59,7 +59,7 @@ OSCILLOSCOPE_ENABLED = False        # Oscilloscope Flag
 PROGRAM_IS_ACTIVE = True            
 
 # Oscilloscope Plot
-TIME_DOMAIN_XS   = np.zeros(FRAMES_PER_BUFFER)
+TIME_DOMAIN_XS = np.zeros(FRAMES_PER_BUFFER)
 TIME_DOMAIN_YS = np.zeros(FRAMES_PER_BUFFER)
 
 # Test Sine
@@ -204,7 +204,7 @@ if __name__ == "__main__":
     # Start scope
     fig, (ax_timeDomain, ax_freqDomain) = plt.subplots(2)
     fig.suptitle("Oscilloscope", fontsize=16)
-    #ax_timeDomain.set_xlim(0, int(FRAMES_PER_BUFFER / SAMPLE_RATE))
+    fig.tight_layout()
     ax_timeDomain.set_ylim(-1, 1)
     ax_timeDomain.set_xlabel("Time (s)")
     ax_timeDomain.set_ylabel("Amplitude")
@@ -227,19 +227,22 @@ if __name__ == "__main__":
                 s = sys.stdin.readline()
                 handle_kb_input(s, stream)
 
+            #TODO: python3.7 graphing gets distorted? python2.7 didn't have this issue
             # Plot / update figure canvas
             if OSCILLOSCOPE_ENABLED:
                 ## Plot Time Domain Signal
                 # Increment time domain
-                #ax_timeDomain.set_xlim(int(TIME_DOMAIN_XS[0] / float(SAMPLE_RATE)), int(TIME_DOMAIN_XS[FRAMES_PER_BUFFER-1] / float(SAMPLE_RATE)))
-                ax_timeDomain.plot(np.linspace(0, int(FRAMES_PER_BUFFER / SAMPLE_RATE * 1000), FRAMES_PER_BUFFER), TIME_DOMAIN_YS, c='blue')
+                #ax_timeDomain.set_xlim(int(float(TIME_DOMAIN_XS[0]) / float(SAMPLE_RATE)), int(float(TIME_DOMAIN_XS[FRAMES_PER_BUFFER-1]) / float(SAMPLE_RATE)))
+                #ax_timeDomain.set_xlim(TIME_DOMAIN_XS[0]+1, TIME_DOMAIN_XS[FRAMES_PER_BUFFER-1])
+                ax_timeDomain.cla()
+                ax_timeDomain.plot(TIME_DOMAIN_XS / float(SAMPLE_RATE), TIME_DOMAIN_YS, c='blue')
                 ## Plot Frequency Spectrum
-                # Compute FFT (magnitude + phase)
+                # Compute FFT (magnitude + phase
                 FREQ_DOMAIN_YS = fft(TIME_DOMAIN_YS)
                 # Clear plot and redraw frequency spectrum
                 ax_freqDomain.cla()
                 # Get magnitude of each frequency; 2/length of sequence for normalization
-                ax_freqDomain.plot(FREQ_DOMAIN_XS, 2.0 / FRAMES_PER_BUFFER * np.abs(FREQ_DOMAIN_YS[:FRAMES_PER_BUFFER / 2]), c='orange')
+                ax_freqDomain.plot(FREQ_DOMAIN_XS, 2.0 / FRAMES_PER_BUFFER * np.abs(FREQ_DOMAIN_YS[:int(FRAMES_PER_BUFFER / 2)]), c='orange')
                 fig.canvas.draw()
                 # Pause for 1ms to let it redraw
                 plt.pause(0.001)
